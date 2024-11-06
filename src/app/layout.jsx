@@ -4,7 +4,7 @@ import "./globals.css";
 import "../assets/css/bootstrap.css"
 import Header from "@/components/Header";
 import Script from 'next/script'
-import TanstackProvider from "@/providers/TanstackProvider";
+// import TanstackProvider from "@/providers/TanstackProvider";
 import AuthProvider from "@/providers/AuthProvider";
 import { SectionProvider } from "@/context/SectionContext";
 import { getServerSession } from "next-auth";
@@ -57,13 +57,16 @@ export default async function RootLayout({ children }) {
         }}></Script> */}
       </head>
       <body className={`${roboto_init.variable}`}>
+        <Script
+        strategy="beforeInteractive"
+          src={`https://www.google.com/recaptcha/api.js?render=${process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}`}
+        />
         <AuthProvider session={session}>
           <SectionProvider>
             {/* <TanstackProvider> */}
-              <Header />
-              {/* {blogs.length > 0 && <ImageSlider slides={blogs.slice(0, 5)} />} */}
-
-              {children}
+            <Header />
+            {/* {blogs.length > 0 && <ImageSlider slides={blogs.slice(0, 5)} />} */}
+            {children}
             {/* </TanstackProvider> */}
           </SectionProvider>
         </AuthProvider>
