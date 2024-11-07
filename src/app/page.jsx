@@ -5,8 +5,6 @@ import Link from "next/link";
 import { signIn } from "next-auth/react"
 
 import { useForm } from 'react-hook-form';
-import axios from "axios";
-import { GoogleReCaptchaProvider, useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
 import { AuthData } from "@/providers/AuthWrapper";
 
@@ -15,8 +13,8 @@ import { fetchUserMailAndPass } from "@/services/UsersServices";
 import { useMediaQuery } from "@mui/material";
 import { logo } from "@/components/imagepath";
 import { Eye, EyeOff } from "feather-icons-react/build/IconComponents";
-import GoogleReCaptchaWrapper from "@/providers/GoogleCaptchaWrapper";
-
+import { getCaptchaToken } from "@/utils/captcha";
+import { logInAction } from "./actions";
 
 const Login = () => {
   const [passwordVisible, setPasswordVisible] = useState(true);
@@ -37,49 +35,52 @@ const Login = () => {
   } = useForm()
   const { login } = AuthData()
 
-  const { executeRecaptcha } = useGoogleReCaptcha()
-  const [submitMessage, setSubmitMessage] = useState('');
+  // const [submitMessage, setSubmitMessage] = useState('');
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
   };
 
   const handleOnSubmit = handleSubmit(async (data) => {
-    console.log('DATA', data);
     setSubmit('')
-    try {
-      const res = await signIn('credentials', { callbackUrl: '/citas' })
-      console.log(res);
-      if (res.validacion === false) {
-        setIsInvalid(true)
-      } else {
-        setIsInvalid(false)
-        setIsLoggedIn(true)
+    const token = await getCaptchaToken()
+    const response = await logInAction(token, data)
+
+    if (response.success) {
+      try {
+        const res = await signIn('credentials', { 
+          callbackUrl: '/citas',
+          // redirect: false,
+          email: data.email,
+          password: data.password
+        })
+        console.log('SIGNIN', res);
+        if (res.validacion === false) {
+          setIsInvalid(true)
+        } else {
+          setIsInvalid(false)
+          setIsLoggedIn(true)
+        }
+      } catch (err) {
+        console.log('en login', err)
       }
-    } catch (err) {
-      console.log(err)
+    } else {
+      console.log('NO PUDO LOGEAR')
     }
   })
 
   const handleTabClick = (tabId) => {
     setHash(tabId);
   };
-  // const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 
-  // if (!siteKey) {
-  //   throw new Error('ReCAPTCHA site key is not defined');
-  // }
-  // if(isLoggedIn) return <Navigate to={'/appoinmentlist'}/>
   const handleSignIn = async () => {
     try {
       // Realiza la autenticación
       await signIn('google', { callbackUrl: '/citas' }) // Se puede pasar el nombre del proveedor que se esté utilizando
       // Si la autenticación es exitosa, se redirigirá automáticamente a la página de destino configurada en NextAuth
-
     } catch (error) {
       // Maneja el error de autenticación
       console.log('ERRRR', error);
-      redirect('/login')
       if (error.message === 'No se pudo acceder. Correo no autorizado.') {
         // Muestra un mensaje de error personalizado al usuario
         alert('No tienes acceso. Tu correo no está autorizado.');
@@ -89,48 +90,12 @@ const Login = () => {
         // Muestra un mensaje de error genérico al usuario
         alert('Ha ocurrido un error durante la autenticación. Por favor, inténtalo de nuevo.');
       }
+      redirect('/login')
     }
   }
 
-
-  const onSubmit = async (data) => {
-    if (!executeRecaptcha) {
-      console.log('Recaptcha not yet available');
-      return;
-    }
-
-    const token = await executeRecaptcha('login');
-
-    const response = await axios.post('/api/recaptchaSubmit', { token });
-
-    console.log('RESPONSE', response);
-    if (response.data.success) {
-      
-      const result = await signIn('credentials', {
-        redirect: false,
-        email: data.email,
-        password: data.password,
-      });
-
-      console.log('DATA', data);
-      
-      if (result.error) {
-        setSubmitMessage('Login failed');
-      } else {
-        setSubmitMessage('Login successful');
-      }
-    } else {
-      console.log('reCAPTCHA verification failed');
-      
-      setSubmitMessage('reCAPTCHA verification failed');
-    }
-  };
-
   return (
     <>
-      {/* Main Wrapper */}
-      <GoogleReCaptchaWrapper>
-
       <div className="main-wrapper login-body sailec">
         <div className="container-fluid px-0">
           <div className="row ">
@@ -140,18 +105,7 @@ const Login = () => {
               backgroundSize: 'cover',
               backgroundPositionX: 'center'
             }}>
-              <div className="login-sec">
-                {/* <div className="log-img" >
-                  <img
-                    className="img-fluid"
-                    src="https://dae.udp.cl/cms/wp-content/uploads/2022/05/136.jpg"
-                    alt="#"
-                  />
-                </div> */}
-              </div>
             </div>
-            {/* /Login logo */}
-            {/* Login Content */}
 
             <div className="col-12 col-lg-6 login-wrap-bg" style={{ padding: '15px 20px 15px' }}>
               <div className="login-wrapper">
@@ -159,13 +113,12 @@ const Login = () => {
                   style={{
                     background: 'white !important',
                     width: matches ? '70%' : 'unset',
-                    // border: '1px solid lightgrey'
                   }}>
                   <div className="login-right mx-2 p-0">
                     <div className="login-right-wrap">
                       <div className="account-logo">
                         <Link href="#">
-                          <img src={logo.src} width="100%" alt="logo udp" style={{maxWidth: '-webkit-fill-available', display: !matches && 'none'}}/>
+                          <img src={logo.src} width="100%" alt="logo udp" style={{ maxWidth: '-webkit-fill-available', display: !matches && 'none' }} />
                         </Link>
                       </div>
 
@@ -173,7 +126,7 @@ const Login = () => {
                         <div className="row">
                           <div className="col-12">
                             <div className="card" style={{ border: 'none' }}>
-                              <div className="card-body" style={{width: !matches && '90vw'}}>
+                              <div className="card-body" style={{ width: !matches && '90vw' }}>
                                 {/* <h4 className="card-title">Login</h4> */}
                                 <h3 className="section-title">Login</h3>
 
@@ -209,7 +162,7 @@ const Login = () => {
                                 </ul>
                                 <div className="tab-content" style={{ height: '250px' }}>
 
-                                  <div className={`tab-pane ${hash === 'estudiantes' ? 'show active d-flex flex-column justify-content-evenly '  : hash === '' ? 'show active d-flex flex-column justify-content-evenly ' : ''}`} id="profesionales" style={{ height: '100%', textAlign: 'center', }}>
+                                  <div className={`tab-pane ${hash === 'estudiantes' ? 'show active d-flex flex-column justify-content-evenly ' : hash === '' ? 'show active d-flex flex-column justify-content-evenly ' : ''}`} id="profesionales" style={{ height: '100%', textAlign: 'center', }}>
                                     <p>Ingresa con tu mail UDP para poder realizar una reserva.</p>
                                     <div>
                                       <button className="gsi-material-button btn btn-primary btn-block"
@@ -217,10 +170,8 @@ const Login = () => {
                                         style={{
                                           color: '#fff', background: '#4e57cd',
                                           width: '100%',
-
                                         }}
                                       >
-
                                         <div className="gsi-material-button-state"></div>
                                         <div className="gsi-material-button-content-wrapper">
                                           <div className="gsi-material-button-icon">
@@ -240,7 +191,6 @@ const Login = () => {
 
                                   </div>
                                   <div className={`tab-pane ${hash === 'profesionales' ? 'show active' : ''}`} id="estudiantes">
-
 
                                     <form >
                                       <div className="form-group">
@@ -313,7 +263,7 @@ const Login = () => {
                                       <div className="form-group login-btn">
                                         <button
                                           className="btn btn-primary btn-block sailec-medium"
-                                          onClick={handleSubmit(onSubmit)}
+                                          onClick={handleOnSubmit}
                                         >
                                           Iniciar sesión
                                         </button>
@@ -412,7 +362,6 @@ const Login = () => {
           </div>
         </div>
       </div>
-      </GoogleReCaptchaWrapper>
 
     </>
   );
